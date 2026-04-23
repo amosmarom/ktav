@@ -80,7 +80,7 @@
   <div>
     <h1>✍ Ktav</h1>
     <div class="sub">Hebrew RTL editor — lives inside Google Colab</div>
-    <div class="version">v1.0 · 2026-04-22 20:30</div>
+    <div class="version">v1.1 · 2026-04-23</div>
   </div>
 </header>
 
@@ -202,6 +202,7 @@ function ktav() {
     '.kbtn-p{background:#4361ee;color:#fff}.kbtn-p:hover{background:#3451d1}',
     '.kbtn-t{background:#0d9488;color:#fff}.kbtn-t:hover{background:#0f766e}',
     '.kbtn-g{background:#f1f5f9;color:#64748b;border:1.5px solid #e2e8f0}.kbtn-g:hover{background:#e2e8f0}',
+    '.kbtn-o{background:#d97706;color:#fff}.kbtn-o:hover{background:#b45309}',
     '#ktav-status{font-size:.72rem;color:#64748b;margin-left:auto;font-weight:600}',
     '#ktav-status.ok{color:#15803d}#ktav-status.err{color:#b91c1c}'
   ].join('');
@@ -241,6 +242,7 @@ function ktav() {
     '<div id="ktav-editor" contenteditable="true" dir="rtl" data-ph="הקלד כאן…"></div>' +
     '<div id="ktav-prev-wrap"><div id="ktav-prev-lbl">Preview</div><div id="ktav-prev" dir="rtl"></div></div>' +
     '<div id="ktav-actions">' +
+      '<button class="kbtn kbtn-o" id="ktav-load">📥 Load from Cell</button>' +
       '<button class="kbtn kbtn-p" id="ktav-apply">▶ Apply to Cell</button>' +
       '<button class="kbtn kbtn-t" id="ktav-copy">📋 Copy HTML</button>' +
       '<button class="kbtn kbtn-g" id="ktav-clr">Clear</button>' +
@@ -363,6 +365,61 @@ function ktav() {
     navigator.clipboard.writeText(buildHtml()).then(function() {
       setStatus('✓ Copied!', 'ok');
     });
+  });
+
+  // ── Load from Cell (pick mode) ───────────────────────
+  document.getElementById('ktav-load').addEventListener('click', function() {
+    root.style.display = 'none';
+
+    var hint = document.createElement('div');
+    hint.id = 'ktav-pick-hint';
+    hint.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:2147483647;background:#d97706;color:#fff;padding:11px 22px;border-radius:10px;font-family:system-ui,sans-serif;font-size:.84rem;font-weight:800;box-shadow:0 4px 20px rgba(0,0,0,.3);cursor:pointer;white-space:nowrap;letter-spacing:-.01em';
+    hint.textContent = '✍ Ktav: click the Colab cell to load   ·   click here to cancel';
+    document.body.appendChild(hint);
+
+    function loadFromEl(el) {
+      var content = '';
+      while (el && el !== document.body) {
+        if (el.tagName === 'TEXTAREA') { content = el.value; break; }
+        if (el.isContentEditable && el.id !== ROOT_ID && !el.closest('#' + ROOT_ID)) {
+          content = el.innerHTML; break;
+        }
+        el = el.parentElement;
+      }
+      if (!content) return false;
+
+      // Strip our own wrapper div if present
+      var tmp = document.createElement('div');
+      tmp.innerHTML = content;
+      var wrapper = tmp.querySelector('div[dir="rtl"][style]');
+      editor.innerHTML = wrapper ? wrapper.innerHTML : content;
+      try { localStorage.setItem('ktav-content', editor.innerHTML); } catch(e2) {}
+      refreshPreview();
+      return true;
+    }
+
+    function pickHandler(e) {
+      e.preventDefault(); e.stopPropagation();
+      cleanup();
+      root.style.display = 'flex';
+
+      if (hint.contains(e.target)) return; // cancelled
+
+      if (loadFromEl(e.target)) {
+        setStatus('✓ Loaded from cell', 'ok');
+      } else {
+        setStatus('⚠ No editable content found', 'err', 3500);
+      }
+      editor.focus();
+    }
+
+    function cleanup() {
+      document.removeEventListener('click', pickHandler, true);
+      if (hint.parentNode) hint.remove();
+    }
+
+    hint.addEventListener('click', function() { cleanup(); root.style.display = 'flex'; });
+    setTimeout(function() { document.addEventListener('click', pickHandler, true); }, 150);
   });
 
   // ── Clear editor ─────────────────────────────────────
